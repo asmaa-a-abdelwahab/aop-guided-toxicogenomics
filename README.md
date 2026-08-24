@@ -9,6 +9,7 @@ visualization.
 
 ## Workflow
 
+0. Validate the count matrix, metadata, sample matching, library sizes, and QC.
 1. Run DESeq2 quality control and differential expression.
 2. Expand literature-derived gene sets with DoRothEA transcription-factor
    targets at AB and ABC confidence levels.
@@ -61,7 +62,7 @@ python -m pip install -r requirements.txt
 
 ## Run
 
-Run steps 1-6 in order:
+Run validation plus steps 1-6 in order:
 
 ```bash
 Rscript run_pipeline.R
@@ -70,8 +71,8 @@ Rscript run_pipeline.R
 Select specific steps or preview the execution order:
 
 ```bash
-Rscript run_pipeline.R --steps=1,3,6
-Rscript run_pipeline.R --steps=1,2,3,4,5,6,7 --dry-run
+Rscript run_pipeline.R --steps=00,1,3,6
+Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,7 --dry-run
 ```
 
 Each numbered script can also be run directly from the repository root. Step 02

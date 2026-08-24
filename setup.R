@@ -35,7 +35,7 @@ if (getRversion() < "4.4" || getRversion() >= "4.5") {
 renv::settings$bioconductor.version("3.20", persist = TRUE)
 
 cran_packages <- c(
-  "BiocManager", "circlize", "dplyr", "forcats", "fs", "ggraph",
+  "BiocManager", "circlize", "data.table", "dplyr", "forcats", "fs", "ggraph",
   "ggplot2", "htmltools", "htmlwidgets", "igraph", "jsonlite",
   "matrixStats", "msigdbr", "openxlsx", "optparse", "pheatmap", "purrr",
   "RColorBrewer", "ragg", "readr", "readxl", "scales", "stringr",

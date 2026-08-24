@@ -11,6 +11,7 @@ Sys.setenv(AOP_PIPELINE_ROOT = project_root)
 args <- commandArgs(trailingOnly = TRUE)
 
 steps <- c(
+  `00` = "scripts/00_data_validation.R",
   `1` = "scripts/01_deseq2_qc.R",
   `2` = "scripts/02_tf_target_expansion.R",
   `3` = "scripts/03_functional_enrichment.R",
@@ -22,8 +23,8 @@ steps <- c(
 
 usage <- function() {
   cat(
-    "Usage: Rscript run_pipeline.R [--steps=1,2,3,4,5,6] [--dry-run]\n\n",
-    "Steps 1-6 run by default. Step 7 is optional because it requires the\n",
+    "Usage: Rscript run_pipeline.R [--steps=00,1,2,3,4,5,6] [--dry-run]\n\n",
+    "Steps 00-6 run by default. Step 7 is optional because it requires the\n",
     "AOP-Wiki TSV exports described in data/README.md.\n",
     sep = ""
   )
@@ -38,7 +39,7 @@ steps_arg <- grep("^--steps=", args, value = TRUE)
 selected <- if (length(steps_arg)) {
   strsplit(sub("^--steps=", "", steps_arg[[1]]), ",", fixed = TRUE)[[1]]
 } else {
-  as.character(1:6)
+  c("00", as.character(1:6))
 }
 selected <- trimws(selected)
 

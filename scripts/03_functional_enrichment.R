@@ -96,16 +96,35 @@ to_numeric_ratio <- function(x) {
   vapply(strsplit(x, "/"), function(v) as.numeric(v[1]) / as.numeric(v[2]), numeric(1))
 }
 
-# SYMBOL -> ENSEMBL (unique, NA-safe)
+# SYMBOL/ENSEMBL -> ENSEMBL (unique, NA-safe)
 map_symbol_to_ensembl <- function(sym) {
-  if (!length(sym)) return(character(0))
-  m <- suppressMessages(
-    AnnotationDbi::select(org.Hs.eg.db,
-                          keys = unique(na.omit(toupper(sym))),
-                          keytype = "SYMBOL",
-                          columns = "ENSEMBL")
+  ids <- unique(trimws(as.character(sym)))
+  ids <- ids[!is.na(ids) & nzchar(ids)]
+  if (!length(ids)) return(character(0))
+
+  is_ensembl <- grepl("^ENSG[0-9]+(\\.[0-9]+)?$", ids, ignore.case = TRUE)
+  ensembl_ids <- toupper(sub("\\.[0-9]+$", "", ids[is_ensembl]))
+
+  symbol_candidates <- unique(toupper(ids[!is_ensembl]))
+  valid_symbols <- intersect(
+    symbol_candidates,
+    AnnotationDbi::keys(org.Hs.eg.db, keytype = "SYMBOL")
   )
-  unique(na.omit(sub("\\.\\d+$", "", m$ENSEMBL)))
+
+  mapped_ids <- character(0)
+  if (length(valid_symbols)) {
+    m <- suppressMessages(
+      AnnotationDbi::select(
+        org.Hs.eg.db,
+        keys = valid_symbols,
+        keytype = "SYMBOL",
+        columns = "ENSEMBL"
+      )
+    )
+    mapped_ids <- sub("\\.[0-9]+$", "", m$ENSEMBL)
+  }
+
+  unique(na.omit(c(ensembl_ids, mapped_ids)))
 }
 
 plot_enrich_bar <- function(obj, top_n = CFG$TOP_N_PLOT, value = c("GeneRatio","Count"), showCategory = NULL) {
@@ -141,12 +160,29 @@ safe_upsetplot <- function(obj, n = 15) {
   tryCatch(enrichplot::upsetplot(obj, n = n), error = function(e) NULL)
 }
 
+# ggtangle 0.1.2 still uses ggplot2's deprecated line-size aesthetic. Muffle only
+# that dependency warning while preserving every other warning from enrichment.
+muffle_ggtangle_size_warning <- function(expr) {
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      message <- conditionMessage(w)
+      known_warning <-
+        grepl("Using `size` aesthetic for lines was deprecated", message, fixed = TRUE) &&
+        grepl("ggtangle", message, fixed = TRUE)
+      if (known_warning) invokeRestart("muffleWarning")
+    }
+  )
+}
+
 map_ensg_to_entrez <- function(ensg_vec) {
   if (!length(ensg_vec)) return(integer(0))
   ensg_vec <- unique(na.omit(strip_v(ensg_vec)))
-  m <- AnnotationDbi::select(org.Hs.eg.db,
-                             keys = ensg_vec, keytype = "ENSEMBL",
-                             columns = "ENTREZID")
+  m <- suppressMessages(
+    AnnotationDbi::select(org.Hs.eg.db,
+                          keys = ensg_vec, keytype = "ENSEMBL",
+                          columns = "ENTREZID")
+  )
   unique(na.omit(m$ENTREZID))
 }
 
@@ -184,8 +220,10 @@ run_enrichment_for_gene_set <- function(set_name, ensg, universe_entrez = NULL, 
       save_both(safe_emapplot(ego, showCategory = 30), paste0(base, "_emapplot"))
       
       if (!is.null(fc_map)) {
-        ensg_for_entrez <- AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
-                                                 keytype = "ENSEMBL", columns = "ENTREZID")
+        ensg_for_entrez <- suppressMessages(
+          AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
+                                keytype = "ENSEMBL", columns = "ENTREZID")
+        )
         lfc_entrez <- setNames(fc_map[match(ensg_for_entrez$ENSEMBL, names(fc_map))],
                                ensg_for_entrez$ENTREZID)
         save_both(tryCatch(enrichplot::cnetplot(ego, showCategory = 10, foldChange = lfc_entrez),
@@ -270,8 +308,10 @@ run_enrichment_for_gene_set <- function(set_name, ensg, universe_entrez = NULL, 
               paste0(base, "_barplot"))
     save_both(safe_emapplot(ekegg_r, showCategory = 30), paste0(base, "_emapplot"))
     if (!is.null(fc_map)) {
-      ensg_for_entrez <- AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
-                                               keytype = "ENSEMBL", columns = "ENTREZID")
+      ensg_for_entrez <- suppressMessages(
+        AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
+                              keytype = "ENSEMBL", columns = "ENTREZID")
+      )
       lfc_entrez <- setNames(fc_map[match(ensg_for_entrez$ENSEMBL, names(fc_map))],
                              ensg_for_entrez$ENTREZID)
       save_both(tryCatch(enrichplot::cnetplot(ekegg_r, showCategory = 10, foldChange = lfc_entrez),
@@ -300,8 +340,10 @@ run_enrichment_for_gene_set <- function(set_name, ensg, universe_entrez = NULL, 
               paste0(base, "_barplot"))
     save_both(safe_emapplot(ereact, showCategory = 30), paste0(base, "_emapplot"))
     if (!is.null(fc_map)) {
-      ensg_for_entrez <- AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
-                                               keytype = "ENSEMBL", columns = "ENTREZID")
+      ensg_for_entrez <- suppressMessages(
+        AnnotationDbi::select(org.Hs.eg.db, keys = names(fc_map),
+                              keytype = "ENSEMBL", columns = "ENTREZID")
+      )
       lfc_entrez <- setNames(fc_map[match(ensg_for_entrez$ENSEMBL, names(fc_map))],
                              ensg_for_entrez$ENTREZID)
       save_both(tryCatch(enrichplot::cnetplot(ereact, showCategory = 10, foldChange = lfc_entrez),
@@ -646,7 +688,7 @@ merge_significant_per_collection <- function(root, out_dir,
 }
 
 ensure_dirs(CFG$ENR_ROOT)
-main()
+muffle_ggtangle_size_warning(main())
 
 merge_significant_per_collection(
   root    = CFG$ENR_ROOT,
