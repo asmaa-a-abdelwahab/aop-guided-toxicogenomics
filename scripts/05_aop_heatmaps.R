@@ -7,18 +7,29 @@
 source(file.path("scripts", "_config.R"))
 assert_packages(c("tidyverse", "ComplexHeatmap", "circlize", "RColorBrewer", "readr"))
 
-library(tidyverse)
-library(ComplexHeatmap)
-library(circlize)
-library(RColorBrewer)
-library(grid)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(RColorBrewer)
+  library(grid)
+})
 
 # ========================== Load & Merge Data ================================
 fingerprint_files <- c(
   file.path(AOP_DIR, "AOP_fingerprint_GSE_enriched.csv"),
   file.path(AOP_DIR, "AOP_fingerprint_Literature_enriched.csv")
 )
-assert_files(fingerprint_files, "AOP fingerprint tables")
+missing_fingerprints <- fingerprint_files[!file.exists(fingerprint_files)]
+if (length(missing_fingerprints)) {
+  stop(
+    "AOP fingerprint tables not found:\n- ",
+    paste(missing_fingerprints, collapse = "\n- "),
+    "\nRun step 04 to completion before step 05:\n",
+    "  Rscript run_pipeline.R --steps=4,5,6",
+    call. = FALSE
+  )
+}
 df_gse <- read.csv(fingerprint_files[[1]])
 df_lit <- read.csv(fingerprint_files[[2]])
 df <- bind_rows(df_gse, df_lit)
