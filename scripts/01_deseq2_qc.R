@@ -32,9 +32,13 @@ if (!length(keep)) {
 }
 cts  <- cts[, keep, drop = FALSE]
 meta <- meta[keep, , drop = FALSE]
-meta$condition <- dplyr::recode(meta$condition, "Medium"="CTRL", "Control"="CTRL", .default = meta$condition)
+meta$condition[meta$condition %in% CONTROL_ALIASES] <- "CTRL"
 if (!"CTRL" %in% meta$condition) {
-  stop("Metadata must contain a CTRL, Control, or Medium condition.", call. = FALSE)
+  stop(
+    "Metadata must contain one of the configured control aliases: ",
+    paste(CONTROL_ALIASES, collapse = ", "),
+    call. = FALSE
+  )
 }
 
 # --- output dirs -------------------------------------------------------------

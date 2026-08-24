@@ -19,15 +19,18 @@ steps <- c(
   `5` = "scripts/05_aop_heatmaps.R",
   `6` = "scripts/06_functional_enrichment_heatmaps.R",
   `7` = "scripts/07_aop_network.R",
-  `8` = "scripts/08_literature_signature_projection.R"
+  `8` = "scripts/08_literature_signature_projection.R",
+  `9` = "scripts/09_deg_concordance.R",
+  `10` = "scripts/10_integrated_interpretation.R"
 )
 
 usage <- function() {
   cat(
     "Usage: Rscript run_pipeline.R [--steps=00,1,2,3,4,5,6] [--dry-run]\n\n",
     "Steps 00-6 run by default. Step 7 is optional because it requires the\n",
-    "AOP-Wiki TSV exports described in data/README.md. Step 8 optionally\n",
-    "projects literature UP/DOWN signatures onto the DESeq2 contrasts.\n",
+    "AOP-Wiki TSV exports described in data/README.md. Steps 8-10 are\n",
+    "optional interpretation stages for signature projection, DEG\n",
+    "concordance, and integrated functional/AOP/TF synthesis.\n",
     sep = ""
   )
 }

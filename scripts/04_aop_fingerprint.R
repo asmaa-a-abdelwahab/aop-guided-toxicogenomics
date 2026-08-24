@@ -40,13 +40,8 @@ quiet_stdout <- function(expr) {
   result
 }
 
-# --- Load project-specific backgrounds ---
-# background_genes.xlsx        -> for GSE chemicals
-# background_genes_GRCh38.xlsx -> for literature chemicals
-background_files <- c(
-  file.path(ROOT, "data", "background_genes.xlsx"),
-  file.path(ROOT, "data", "background_genes_GRCh38.xlsx")
-)
+# --- Load case-study backgrounds configured in scripts/_config.R ---
+background_files <- c(BACKGROUND_GSE_FILE, BACKGROUND_LIT_FILE)
 assert_files(background_files, "Background gene files")
 background <- suppressMessages(
   read_excel(background_files[[1]], col_names = FALSE)
@@ -67,7 +62,7 @@ message(sprintf("Background sizes (AS-IS) | GSE=%d  LIT=%d",
 # ---- Build GList from DE outputs --------------------------------------------
 to_glist <- function(vec, chem, setlab){
   if (!length(vec)) return(NULL)
-  data.frame(Feature = vec, timepoint = 24L, Experiment = paste0(chem, "_", setlab))
+  data.frame(Feature = vec, timepoint = TIMEPOINT, Experiment = paste0(chem, "_", setlab))
 }
 
 GList_gse <- list()
@@ -208,7 +203,7 @@ if (file.exists(LIT_FILE)) {
     
     data.frame(
       Feature    = unique(ens),
-      timepoint  = 24L,
+      timepoint  = TIMEPOINT,
       Experiment = exp_lab,
       stringsAsFactors = FALSE
     )

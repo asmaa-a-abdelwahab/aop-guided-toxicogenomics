@@ -344,8 +344,8 @@ read_one <- function(path) {
 # --- merge -------------------------------------------------------------------
 merged <- dplyr::bind_rows(lapply(files, read_one))
 
-# add timepoint = 24 (as numeric)
-merged <- merged %>% mutate(timepoint = 24, .after = Experiment)
+# Add the case-study timepoint configured in scripts/_config.R.
+merged <- merged %>% mutate(timepoint = TIMEPOINT, .after = Experiment)
 
 # --- write Excel if possible; otherwise CSV fallback -------------------------
 write_excel <- function(df, path_xlsx) {
