@@ -1,0 +1,39 @@
+# R session and IDE state
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Local environment and secrets
+.Renviron
+.env
+.env.*
+!.env.example
+
+# renv: keep renv.lock, renv/activate.R, and renv/settings.json
+renv/library/
+renv/local/
+renv/staging/
+renv/cellar/
+renv/python/
+renv/sandbox/
+
+# Generated analysis results
+outputs/**
+!outputs/.gitkeep
+
+# Input datasets are not redistributed by default
+data/**
+!data/README.md
+
+# Python artifacts and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*~
