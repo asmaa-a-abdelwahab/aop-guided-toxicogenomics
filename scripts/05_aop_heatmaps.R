@@ -38,6 +38,12 @@ df <- bind_rows(df_gse, df_lit)
 outdir <- file.path(CMP_DIR, "AOP")
 if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
 
+# ComplexHeatmap text measurement can open R's default file device in a
+# non-interactive session. Keep a null device underneath explicit export
+# devices so the pipeline never leaves an unintended Rplots.pdf in the root.
+grDevices::pdf(NULL)
+null_device <- grDevices::dev.cur()
+
 # ========================== Size controls (edit here) ========================
 # Per-cell size (mm). Set different values for rectangular cells.
 CELL_W_MM      <- 4     # cell width  in mm
@@ -327,6 +333,8 @@ export_and_store <- function(ht, hm_name, filename, outdir,
     svglite::svglite(file.path(outdir, paste0(filename, ".svg")), width = W, height = H, bg = "white")
     draw_once(); dev.off()
   }
+
+  plots_list[[filename]] <<- ht
   
   invisible(TRUE)
 }
@@ -345,6 +353,36 @@ rank_in_chunks <- function(df, id_col, value_col = "neglog10_padj", topN = 20) {
     mutate(rank  = row_number(),
            batch = ceiling(rank / topN)) %>%
     ungroup()
+}
+
+# Build one deterministic annotation per KE/AOP. Missing annotations fall back
+# to "Uncategorized"; ties are resolved alphabetically after frequency.
+dominant_group <- function(data, id_col, group_col) {
+  stopifnot(id_col %in% names(data))
+
+  ids <- tibble::tibble(id = as.character(data[[id_col]])) %>%
+    filter(!is.na(id), nzchar(id)) %>%
+    distinct()
+
+  if (!group_col %in% names(data)) {
+    return(mutate(ids, Group = "Uncategorized"))
+  }
+
+  counts <- tibble::tibble(
+    id = as.character(data[[id_col]]),
+    Group = as.character(data[[group_col]])
+  ) %>%
+    filter(!is.na(id), nzchar(id), !is.na(Group), nzchar(Group)) %>%
+    count(id, Group, name = ".n") %>%
+    arrange(id, desc(.n), Group) %>%
+    group_by(id) %>%
+    slice_head(n = 1) %>%
+    ungroup() %>%
+    select(id, Group)
+
+  ids %>%
+    left_join(counts, by = "id", relationship = "one-to-one") %>%
+    mutate(Group = coalesce(Group, "Uncategorized"))
 }
 
 # Render all batches for a given ranked table
@@ -487,7 +525,7 @@ render_grouped_top_batches <- function(ranked_tbl, id_col, group_map, group_labe
       row_names_max_width = row_name_space,
       row_split  = row_groups,
       right_annotation = right_blocks,             # groups OUTSIDE the box
-      top_ann    = top_ann,
+      top_annotation = top_ann,
       column_title = sprintf("Batch %d (Top-%d window) — grouped by %s", b, topN, group_label),
       row_title    = group_label,
       column_split = get_col_split(mat)            # ALL / UP / DOWN / Other together
@@ -505,7 +543,12 @@ render_grouped_top_batches <- function(ranked_tbl, id_col, group_map, group_labe
 }
 
 # -------------------- KEs: grouped batches by SSbD / Organ / Endpoint -------
-# assumes: ranked_ke from rank_in_chunks(); ke_maps list already built
+ke_maps <- list(
+  SSbD = dominant_group(df, "Ke_description", "SSbD_category"),
+  Organ = dominant_group(df, "Ke_description", "Organ"),
+  Endpoint = dominant_group(df, "Ke_description", "Endpoint")
+)
+
 render_grouped_top_batches(ranked_ke, "Ke_description", ke_maps$SSbD,     "SSbD category",
                            prefix = "KEs", outdir = outdir, topN = topN, batchN = batchN)
 render_grouped_top_batches(ranked_ke, "Ke_description", ke_maps$Organ,    "Organ",
@@ -514,8 +557,12 @@ render_grouped_top_batches(ranked_ke, "Ke_description", ke_maps$Endpoint, "Endpo
                            prefix = "KEs", outdir = outdir, topN = topN, batchN = batchN)
 
 # -------------------- AOPs: grouped batches by SSbD / Organ / Endpoint ------
-# Build AOP group maps with your dominant_group() (already defined earlier)
-# assumes: ranked_aop from rank_in_chunks(); aop_maps list already built
+aop_maps <- list(
+  SSbD = dominant_group(df, "AOP_name", "SSbD_category"),
+  Organ = dominant_group(df, "AOP_name", "Organ"),
+  Endpoint = dominant_group(df, "AOP_name", "Endpoint")
+)
+
 render_grouped_top_batches(ranked_aop, "AOP_name", aop_maps$SSbD,     "SSbD category",
                            prefix = "AOPs", outdir = outdir, topN = topN, batchN = batchN)
 render_grouped_top_batches(ranked_aop, "AOP_name", aop_maps$Organ,    "Organ",
@@ -534,4 +581,8 @@ for (nm in names(plots_list)) {
   draw(plots_list[[nm]], heatmap_legend_side = "right", annotation_legend_side = "right",
        padding = unit(c(6, 10, 6, 6), "mm"))
 }
-dev.off()
+invisible(dev.off())
+
+if (identical(grDevices::dev.cur(), null_device)) {
+  invisible(grDevices::dev.off())
+}
