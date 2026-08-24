@@ -36,7 +36,7 @@ option_list <- list(
   make_option("--roles", type = "character",
               default = file.path(ROOT, "data", "aop_wiki", "aop_ke_mie_ao.tsv"),
               help = "AOP-Wiki KE role TSV [default: %default]"),
-  make_option("-o", "--outdir", type = "character",
+  make_option(c("-o", "--outdir"), type = "character",
               default = file.path(OUT_DIR, "AOP_network"),
               help = "Output directory [default: %default]")
 )
@@ -84,17 +84,35 @@ num_coalesce <- function(df, candidates, new_name) {
   df %>% mutate(!!new_name := x)
 }
 
+read_aopwiki_tsv <- function(path, fallback_names) {
+  first_line <- readLines(path, n = 1L, warn = FALSE, encoding = "UTF-8")
+  first_field <- if (length(first_line)) {
+    tolower(trimws(strsplit(first_line, "\t", fixed = TRUE)[[1]][[1]]))
+  } else {
+    ""
+  }
+  has_header <- first_field %in% c("aop", "aop_id", "aop.id", "aop_wiki_id")
+
+  suppressMessages(readr::read_tsv(
+    path,
+    col_names = if (has_header) TRUE else fallback_names,
+    show_col_types = FALSE,
+    name_repair = "minimal",
+    trim_ws = TRUE
+  ))
+}
+
 ## --- Load: enrichment results -------------------------------------------------
 enrich_raw <- readr::read_csv(in_enrich, show_col_types = FALSE)
 
 # Try to detect key columns with multiple aliases
 enrich <- enrich_raw %>%
   # KE identifiers/names
-  coalesce_cols(c("KE","KeyEvent","Key_Event","KE_Name","KE_name","key_event"), "KE_name") %>%
-  coalesce_cols(c("KE_ID","KEID","KeyEventID","KE_Id","KE.id","KE_Wiki_ID","KE_AOPWiki_ID"), "KE_id") %>%
+  coalesce_cols(c("Ke_description","KE","KeyEvent","Key_Event","KE_Name","KE_name","key_event"), "KE_name") %>%
+  coalesce_cols(c("Ke","KE_ID","KEID","KeyEventID","KE_Id","KE.id","KE_Wiki_ID","KE_AOPWiki_ID"), "KE_id") %>%
   # AOP / Pathway identifiers/names
-  coalesce_cols(c("AOP","AOP_ID","AOP.id","AOPID","AOP_Title","Pathway","Pathway_Name"), "AOP_label") %>%
-  coalesce_cols(c("AOP_Wiki_ID","AOP_ID_num","AOP_Number","AOP_No","AOP.ID"), "AOP_id") %>%
+  coalesce_cols(c("AOP_name","a.name","AOP","AOP_ID","AOP.id","AOPID","AOP_Title","Pathway","Pathway_Name"), "AOP_label") %>%
+  coalesce_cols(c("TermID","AOP_Wiki_ID","AOP_ID_num","AOP_Number","AOP_No","AOP.ID"), "AOP_id") %>%
   # scores / significance
   num_coalesce(c("padj","p.adjust","adj.p","FDR"), "padj") %>%
   num_coalesce(c("neglog10_padj","score","NES","-log10(padj)","minuslog10padj"), "neglog10_padj") %>%
@@ -123,21 +141,43 @@ message(">>> Enriched AOPs n = ", nrow(enriched_AOPs))
 # - ke_ec: at least KE_id, KE_name (or similar)
 # - ke_ker: columns like AOP_id, KE_up_id (source), KE_down_id (target), KER_id, evidence, weight_of_evidence
 # - mie_ao: columns mapping KE_id to role (MIE/KE/AO) and AOP_id/AOP_title
-ke_ec  <- readr::read_tsv(in_ke_ec, show_col_types = FALSE)
-ke_ker <- readr::read_tsv(in_ker,   show_col_types = FALSE)
-mieao  <- readr::read_tsv(in_mieao, show_col_types = FALSE)
+ke_ec <- read_aopwiki_tsv(
+  in_ke_ec,
+  c(
+    "AOP_id", "KE_id", "Effect",
+    "Ontology_1", "Ontology_id_1", "KE_name_primary",
+    "Ontology_2", "Ontology_id_2", "KE_name"
+  )
+)
+ke_ker <- read_aopwiki_tsv(
+  in_ker,
+  c("AOP_id", "from_id", "to_id", "KER_id", "Adjacency", "Evidence", "Quantitative")
+)
+mieao <- read_aopwiki_tsv(
+  in_mieao,
+  c("AOP_id", "KE_id", "Role", "KE_name")
+)
+if (!"KE_name_primary" %in% names(ke_ec)) ke_ec$KE_name_primary <- NA_character_
 
 # Normalize key columns
 ke_ec <- ke_ec %>%
   coalesce_cols(c("KE_id","KE.ID","KEID","KE_wiki_id","Event_ID"), "KE_id") %>%
   coalesce_cols(c("KE_name","Event","Event_Name","KE Title","KE_title"), "KE_name") %>%
-  mutate(KE_id = as.character(KE_id)) %>% distinct(KE_id, .keep_all = TRUE)
+  mutate(
+    KE_id = as.character(KE_id),
+    KE_name = dplyr::coalesce(
+      as.character(KE_name),
+      as.character(KE_name_primary),
+      KE_id
+    )
+  ) %>%
+  distinct(KE_id, .keep_all = TRUE)
 
 ke_ker <- ke_ker %>%
   coalesce_cols(c("AOP_id","AOP.ID","AOP","AOP_wiki_id"), "AOP_id") %>%
   coalesce_cols(c("AOP_title","AOP_Title","Pathway","AOP_label"), "AOP_label") %>%
-  coalesce_cols(c("KE_up_id","KE_upstream_id","from","source","KE_source"), "from_id") %>%
-  coalesce_cols(c("KE_down_id","KE_downstream_id","to","target","KE_target"), "to_id") %>%
+  coalesce_cols(c("from_id","KE_up_id","KE_upstream_id","from","source","KE_source"), "from_id") %>%
+  coalesce_cols(c("to_id","KE_down_id","KE_downstream_id","to","target","KE_target"), "to_id") %>%
   coalesce_cols(c("KER_id","KER.ID","Relationship_ID","Rel_ID"), "KER_id") %>%
   mutate(AOP_id = as.character(AOP_id),
          from_id = as.character(from_id),
@@ -259,6 +299,10 @@ touched_aops <- dplyr::bind_rows(
   mieao %>% filter(KE_id %in% enriched_KEs$KE_id) %>% transmute(AOP_id)
 ) %>% distinct() %>% pull(AOP_id)
 
+message(">>> Touched AOP IDs: ", length(touched_aops),
+        " | matching KER AOP IDs: ",
+        length(intersect(touched_aops, unique(ke_ker$AOP_id))))
+
 if (length(touched_aops) == 0) {
   warning("No AOP IDs detected from results; falling back to all KERs that include enriched KE IDs.")
 }
@@ -311,13 +355,21 @@ nodes <- tibble(KE_id = node_ids) %>%
   left_join(
     mieao %>%
       group_by(KE_id) %>%
-      summarize(Role = paste(sort(unique(na.omit(Role))), collapse = "; "),
+      summarize(KE_name_role = dplyr::first(
+                  KE_name[!is.na(KE_name) & nzchar(KE_name)],
+                  default = NA_character_
+                ),
+                Role = paste(sort(unique(na.omit(Role))), collapse = "; "),
                 AOP_ids = paste(sort(unique(na.omit(AOP_id))), collapse = "; "),
                 AOP_labels = paste(sort(unique(na.omit(AOP_label))), collapse = "; "),
                 .groups = "drop"),
     by = "KE_id"
   ) %>%
-  mutate(Role = ifelse(is.na(Role), "KE", Role))
+  mutate(
+    KE_name = dplyr::coalesce(KE_name_role, KE_name, KE_id),
+    Role = ifelse(is.na(Role), "KE", Role)
+  ) %>%
+  select(-KE_name_role)
 
 # Edge table for graph
 edges <- ker_sub %>%
@@ -371,22 +423,12 @@ if (label_enriched_only) {
     mutate(show_label = TRUE)
 }
 
-# Keep largest weakly-connected component to prevent layout blowups
-g_tbl <- g_tbl %>%
-  activate(nodes) %>%
-  mutate(cc = tidygraph::component_id(mode = "weak")) %>%
-  group_by(cc) %>% mutate(cc_n = n()) %>% ungroup()
-
-largest_cc <- g_tbl %>%
-  activate(nodes) %>%
-  as_tibble() %>%
-  dplyr::count(cc, name = "n") %>%
-  dplyr::arrange(desc(n)) %>%
-  dplyr::slice_head(n = 1) %>%
-  dplyr::pull(cc)
-
-g_tbl <- g_tbl %>% induce_subgraph(cc == largest_cc)
-rm(largest_cc); gc()
+# Keep the largest weakly connected component to prevent layout blowups.
+g_tbl <- tidygraph::convert(
+  g_tbl,
+  tidygraph::to_largest_component,
+  type = "weak"
+)
 
 ## --- VIS 1: Publication PNG (ggraph) -----------------------------------------
 png_file <- file.path(out_dir, "AOP_enrichment_network.png")
@@ -443,7 +485,7 @@ p <- p + ggraph::geom_node_text(
 
 png(png_file, width = png_width, height = png_height, res = png_res)
 print(p)
-dev.off()
+invisible(dev.off())
 
 ## --- VIS 2: Interactive HTML (visNetwork) ------------------------------------
 html_escape <- function(x) {

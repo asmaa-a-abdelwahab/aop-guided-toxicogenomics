@@ -18,14 +18,16 @@ steps <- c(
   `4` = "scripts/04_aop_fingerprint.R",
   `5` = "scripts/05_aop_heatmaps.R",
   `6` = "scripts/06_functional_enrichment_heatmaps.R",
-  `7` = "scripts/07_aop_network.R"
+  `7` = "scripts/07_aop_network.R",
+  `8` = "scripts/08_literature_signature_projection.R"
 )
 
 usage <- function() {
   cat(
     "Usage: Rscript run_pipeline.R [--steps=00,1,2,3,4,5,6] [--dry-run]\n\n",
     "Steps 00-6 run by default. Step 7 is optional because it requires the\n",
-    "AOP-Wiki TSV exports described in data/README.md.\n",
+    "AOP-Wiki TSV exports described in data/README.md. Step 8 optionally\n",
+    "projects literature UP/DOWN signatures onto the DESeq2 contrasts.\n",
     sep = ""
   )
 }

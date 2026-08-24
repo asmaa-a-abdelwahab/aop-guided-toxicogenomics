@@ -18,6 +18,8 @@ visualization.
 5. Render cross-experiment AOP heatmaps.
 6. Render functional-enrichment heatmaps.
 7. Optionally build an AOP-Wiki subnetwork in R or Python.
+8. Optionally project literature UP/DOWN signatures onto each transcriptomic
+   contrast with preranked FGSEA and render an NES heatmap.
 
 ## Repository layout
 
@@ -72,7 +74,7 @@ Select specific steps or preview the execution order:
 
 ```bash
 Rscript run_pipeline.R --steps=00,1,3,6
-Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,7 --dry-run
+Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,7,8 --dry-run
 ```
 
 Each numbered script can also be run directly from the repository root. Step 02
@@ -82,6 +84,7 @@ and both step-07 scripts expose command-line options:
 Rscript scripts/02_tf_target_expansion.R --help
 Rscript scripts/07_aop_network.R --help
 python scripts/07_aop_network.py --help
+Rscript run_pipeline.R --steps=8
 ```
 
 Generated tables, figures, serialized enrichment objects, and interactive HTML

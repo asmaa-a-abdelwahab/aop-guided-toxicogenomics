@@ -23,6 +23,10 @@ that policy.
 - `background_genes_GRCh38.xlsx`: one-column Ensembl background for the
   literature branch.
 
+Optional step 8 requires `Direction` values that can be interpreted as UP/DOWN
+or positive/negative numbers. It projects those literature signatures onto the
+DESeq2 contrasts produced by step 1.
+
 ## Optional network inputs
 
 Step 7 expects the following AOP-Wiki exports under `data/aop_wiki/`:
