@@ -31,6 +31,15 @@ data("human_ens_aop",     package = "AOPfingerprintR")  # AO chains
   unique(x[nzchar(x) & !is.na(x)])
 }
 
+# Some AOPfingerprintR functions print internal labels directly to stdout even
+# with verbose = FALSE. Capture stdout only; messages, warnings, and errors stay
+# visible to the pipeline.
+quiet_stdout <- function(expr) {
+  result <- NULL
+  invisible(utils::capture.output(result <- expr, type = "output"))
+  result
+}
+
 # --- Load project-specific backgrounds ---
 # background_genes.xlsx        -> for GSE chemicals
 # background_genes_GRCh38.xlsx -> for literature chemicals
@@ -39,15 +48,18 @@ background_files <- c(
   file.path(ROOT, "data", "background_genes_GRCh38.xlsx")
 )
 assert_files(background_files, "Background gene files")
-background <- read_excel(background_files[[1]], col_names = FALSE)[[1]]
-genome_background <- read_excel(background_files[[2]], col_names = FALSE)[[1]]
+background <- suppressMessages(
+  read_excel(background_files[[1]], col_names = FALSE)
+)[[1]]
+genome_background <- suppressMessages(
+  read_excel(background_files[[2]], col_names = FALSE)
+)[[1]]
 
 
 bg_gse <- .norm_ids(background)
 bg_lit <- .norm_ids(genome_background)
 
 
-length(bg_gse)
 message(sprintf("Background sizes (AS-IS) | GSE=%d  LIT=%d",
                 length(bg_gse), length(bg_lit)))
 
@@ -108,15 +120,18 @@ GList_gse <- normalize_glist(GList_gse)
 enrich_ke <- function(GList, label, out_dir = AOP_DIR, background) {
   if (!length(GList)) return(invisible(NULL))
 
-  ke_sig <- enrich_KEs_AOPs(
-    GList            = GList,
-    list_gene_sets   = human_ens_clusters,
-    only_significant = TRUE,   # <- only significant
-    pval_th          = 0.05,
-    adj.method       = "fdr",
-    merge_by         = "Ke",
-    background       = background,    # <- use provided background AS-IS
-    numerical_properties = NULL
+  ke_sig <- quiet_stdout(
+    suppressPackageStartupMessages(enrich_KEs_AOPs(
+      GList            = GList,
+      list_gene_sets   = human_ens_clusters,
+      only_significant = TRUE,   # <- only significant
+      pval_th          = 0.05,
+      adj.method       = "fdr",
+      merge_by         = "Ke",
+      background       = background,    # <- use provided background AS-IS
+      numerical_properties = NULL,
+      verbose          = FALSE
+    ))
   )
   # Save if it's a data.frame or a list of data.frames
   if (is.null(ke_sig)) return(invisible(NULL))
@@ -158,8 +173,10 @@ to_ensembl <- function(x_chr) {
   # SYMBOL -> ENSEMBL
   syms <- unique(x_chr[!ens_like & nzchar(x_chr)])
   if (!length(syms)) return(character(0))
-  m <- AnnotationDbi::select(org.Hs.eg.db, keys = syms,
-                             keytype = "SYMBOL", columns = "ENSEMBL")
+  m <- suppressMessages(
+    AnnotationDbi::select(org.Hs.eg.db, keys = syms,
+                          keytype = "SYMBOL", columns = "ENSEMBL")
+  )
   unique(na.omit(m$ENSEMBL))
 }
 
@@ -391,23 +408,27 @@ for (i in seq_along(kes)) {
     enlarge_ke_selection = T
     group_by = "ssbd"
     
-    nodes_edges = AOPfingerprintR::make_visNetwork(ke,
-                                                   experiment = experiment,
-                                                   enlarge_ke_selection = enlarge_ke_selection,
-                                                   ke_id, numerical_variables = numerical_variables,
-                                                   pval_variable,
-                                                   gene_variable,
-                                                   max_path_length = 40,
-                                                   n_AOs = 30,
-                                                   n_MIEs = 30)
+    nodes_edges = suppressPackageStartupMessages(
+      AOPfingerprintR::make_visNetwork(ke,
+                                       experiment = experiment,
+                                       enlarge_ke_selection = enlarge_ke_selection,
+                                       ke_id, numerical_variables = numerical_variables,
+                                       pval_variable,
+                                       gene_variable,
+                                       max_path_length = 40,
+                                       n_AOs = 30,
+                                       n_MIEs = 30)
+    )
     
     write.csv(nodes_edges$nodes, file.path(sub_out, "nodes.csv"), row.names = FALSE)
     write.csv(nodes_edges$edges, file.path(sub_out, "edges.csv"), row.names = FALSE)
     
-    vn = AOPfingerprintR::plot_visNetwork(nodes = nodes_edges$nodes,
-                                          edges = nodes_edges$edges,
-                                          group_by = group_by,
-                                          numerical_variables = numerical_variables)
+    vn = suppressPackageStartupMessages(
+      AOPfingerprintR::plot_visNetwork(nodes = nodes_edges$nodes,
+                                       edges = nodes_edges$edges,
+                                       group_by = group_by,
+                                       numerical_variables = numerical_variables)
+    )
     
     save_visnetwork(vn, file.path(sub_out, "network"))
   }
@@ -455,15 +476,18 @@ make_fingerprint <- function(gene_GList, ke_df_or_list, label) {
   aop_bg <- if (tolower(label) == "literature") bg_lit else bg_gse
 
   # --- AOP enrichment
-  aop_sig <- enrich_KEs_AOPs(
-    GList            = gene_GList,
-    list_gene_sets   = human_ens_aop,
-    only_significant = TRUE,
-    pval_th          = 0.05,
-    adj.method       = "fdr",
-    merge_by         = "Aop",
-    background       = aop_bg,
-    numerical_properties = NULL
+  aop_sig <- quiet_stdout(
+    suppressPackageStartupMessages(enrich_KEs_AOPs(
+      GList            = gene_GList,
+      list_gene_sets   = human_ens_aop,
+      only_significant = TRUE,
+      pval_th          = 0.05,
+      adj.method       = "fdr",
+      merge_by         = "Aop",
+      background       = aop_bg,
+      numerical_properties = NULL,
+      verbose          = FALSE
+    ))
   )
   if (is.null(aop_sig)) {
     message("No significant AOPs for ", label); return(invisible(NULL))
