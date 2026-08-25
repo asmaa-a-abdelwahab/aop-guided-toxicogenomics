@@ -1,0 +1,27 @@
+{
+  "title": "AOP-Guided Toxicogenomics Pipeline",
+  "upload_type": "software",
+  "description": "A reproducible R workflow integrating transcriptomic differential expression, curated literature signatures, functional and adverse outcome pathway enrichment, specificity testing, and publication figure generation.",
+  "creators": [
+    {"name": "Abdelwahab, Asmaa A.", "affiliation": "Edelweiss Connect GmbH"},
+    {"name": "Serra, Angela"},
+    {"name": "Greco, Dario", "affiliation": "Tampere University"},
+    {"name": "Hardy, Barry", "affiliation": "Edelweiss Connect GmbH"}
+  ],
+  "keywords": [
+    "adverse outcome pathway",
+    "toxicogenomics",
+    "MXene",
+    "transcriptomics",
+    "FAIR data",
+    "reproducible research"
+  ],
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/asmaa-a-abdelwahab/aop-guided-toxicogenomics",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ]
+}

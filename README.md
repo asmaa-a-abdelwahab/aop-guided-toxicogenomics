@@ -9,6 +9,10 @@ visualization.
 
 ## Workflow
 
+- **FASTQ (optional):** execute the portable FastQC/MultiQC notebook when local
+  reads are available. This documents upstream sequence quality; the deposited
+  raw-count matrix remains the input to the statistical workflow.
+
 0. Validate the count matrix, metadata, sample matching, library sizes, and QC.
 1. Run DESeq2 quality control and differential expression.
 2. Expand literature-derived gene sets with DoRothEA transcription-factor
@@ -24,6 +28,10 @@ visualization.
    recurrent genes with publication-ready figures.
 10. Integrate recurrent functional terms, AOP profiles, TF-expansion effects,
     and (when available) literature-signature projection results.
+11. Test KE/AOP specificity against branch-specific, size-matched random gene
+    sets and calculate empirical P values.
+12. Assemble manuscript figures as 600-dpi PNG and editable vector PDF files
+    from pipeline outputs.
 
 ## Repository layout
 
@@ -32,6 +40,7 @@ visualization.
 ├── assets/                 # Documentation images
 ├── data/                   # Local inputs (ignored except for documentation)
 ├── outputs/                # Generated results (ignored)
+├── notebooks/              # Portable optional FASTQ QC notebook
 ├── scripts/                # Numbered analysis steps and shared configuration
 ├── run_pipeline.R          # Sequential pipeline runner
 ├── setup.R                 # renv dependency bootstrap
@@ -45,6 +54,9 @@ visualization.
   Debian/Ubuntu these commonly include `libcurl4-openssl-dev`,
   `libfontconfig1-dev`, `libglpk-dev`, and `libssl-dev`.
 - Python 3.10 or newer only if using the Python network visualizer.
+- FastQC plus Jupyter/nbconvert for the optional `fastqc` stage; MultiQC is
+  optional but recommended. These tools are not needed when analysis begins
+  from an already quality-controlled count matrix.
 
 ## Setup
 
@@ -78,7 +90,7 @@ Select specific steps or preview the execution order:
 
 ```bash
 Rscript run_pipeline.R --steps=00,1,3,6
-Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,7,8,9,10 --dry-run
+Rscript run_pipeline.R --steps=fastqc,00,1,2,3,4,5,6,7,8,9,10,11,12 --dry-run
 ```
 
 Each numbered script can also be run directly from the repository root. Step 02
@@ -88,13 +100,54 @@ and both step-07 scripts expose command-line options:
 Rscript scripts/02_tf_target_expansion.R --help
 Rscript scripts/07_aop_network.R --help
 python scripts/07_aop_network.py --help
-Rscript run_pipeline.R --steps=8,9,10
+Rscript run_pipeline.R --steps=8,9,10,11,12
 ```
 
 Generated tables, figures, serialized enrichment objects, and interactive HTML
 files are written under `outputs/` and are intentionally excluded from Git.
 Steps 9 and 10 write PNG figures, editable vector PDFs, plot-source CSV files,
 and data-driven Markdown summaries under `outputs/Interpretation/`.
+Step 11 writes observed, null, term-level, and provenance tables under
+`outputs/Specificity_null/`. Step 12 writes the complete publication figure set
+and `publication_figure_manifest.csv` under `outputs/Publication_figures/`.
+
+### Optional FASTQ quality control
+
+The repository includes [`notebooks/Fastq_QC.ipynb`](notebooks/Fastq_QC.ipynb),
+which replaces the original machine-specific notebook with an
+environment-driven workflow. Put local reads in `data/fastq/` or set
+`AOP_FASTQ_DIR`, then run:
+
+```bash
+Rscript run_pipeline.R --steps=fastqc
+```
+
+The notebook discovers FASTQ/FQ files, runs FastQC, optionally aggregates the
+reports with MultiQC, and records an executed notebook, module summary, and run
+manifest under `outputs/FastQC/`. FASTQ quality control is deliberately an
+optional upstream stage because public read files are large and the core case
+study starts from the deposited count matrix.
+
+## Literature evidence selection and provenance
+
+The case-study search was exported from
+[PubMed ChemInsight](https://pubmed-cheminsight.edelweissconnect.com/) on 6
+September 2025. The unmodified export and the curated evidence workbook are
+retained under `manuscript/`. Twenty-seven returned article records were
+screened for organism, assay, access to gene-level results, and compatibility
+with the human transcriptomic branch. Four publication-based omics candidates
+and one public GEO study were documented; the quantitative literature branch
+uses the two human studies for which directional gene-level signatures could be
+curated (Ti3C2Tx and HN-Ti3C2). The workbook records exclusions and source-study
+metadata rather than treating highlighted search results as automatically
+eligible evidence.
+
+For another case study, archive the original search export, preserve a screening
+decision for every record, and create one row per source in `Study_Metadata`.
+Curated gene rows should retain source DOI/accession, material, organism, model,
+exposure, direction, identifier type, extraction route, and any transformation.
+Do not combine species or assay types merely to increase the apparent evidence
+base.
 
 ## Using the pipeline for another case study
 
@@ -115,9 +168,9 @@ datasets being mixed.
 4. Run step 00 first and review `Data_validation/QC_report.md`, sample matching,
    replicate counts, library sizes, PCA, and identifier mapping before running
    downstream stages.
-5. Run the core workflow with `Rscript run_pipeline.R`. Then run steps 8-10 for
-   interpretation. Step 7 is independent and only runs when AOP-Wiki exports
-   are available.
+5. Run the core workflow with `Rscript run_pipeline.R`. Then run steps 8-12 for
+   interpretation, specificity testing, and publication figures. Step 7 is
+   independent and only runs when AOP-Wiki exports are available.
 6. Review all automatically ranked results against dose, exposure duration,
    biological replicates, and the experimental design before publication.
 
@@ -140,6 +193,15 @@ datasets being mixed.
 | `AOP_PUBLICATION_TOP_AOPS` | Recurrent AOPs shown in the step-10 landscape | `25` |
 | `AOP_PUBLICATION_TOP_GENES` | Recurrent genes shown in the step-09 heatmap | `50` |
 | `AOP_PUBLICATION_DPI` | Raster figure resolution for steps 9-10 | `600` |
+| `AOP_FASTQ_DIR` | Local FASTQ/FQ directory for the optional notebook stage | `data/fastq/` |
+| `AOP_FASTQC_OUTPUT_DIR` | FastQC/MultiQC output directory | `outputs/FastQC/` |
+| `AOP_FASTQC_THREADS` | FastQC worker threads | `4` |
+| `AOP_NULL_ITERATIONS` | Size-matched random draws per gene set and annotation family | `1000` |
+| `AOP_NULL_SEED` | Reproducible matched-null seed | `20260825` |
+| `AOP_NULL_DIRECTIONS` | Directions included in the matched-null analysis | `ALL` |
+| `AOP_NETWORK_JSON` | AOPGraphExplorer JSON export used in the publication network figure | auto-discovered |
+| `AOP_AOPXGENENET_RUN_ROOT` | Parent directory containing AOPxGeneNet/AOPxLINK runs | auto-discovered |
+| `AOP_AOPXGENENET_RUN_DIR` | Explicit archived AOPxGeneNet/AOPxLINK run | auto-discovered |
 
 For example, in a POSIX shell:
 
@@ -150,7 +212,7 @@ export AOP_METADATA_FILE="data/study_b_metadata.csv"
 export AOP_LITERATURE_FILE="data/study_b_literature.csv"
 export AOP_CHEMICALS="CompoundA,CompoundB,PositiveControl"
 export AOP_TIMEPOINT="48"
-Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,8,9,10
+Rscript run_pipeline.R --steps=00,1,2,3,4,5,6,8,9,10,11,12
 ```
 
 In PowerShell, set the same values with syntax such as
@@ -170,6 +232,9 @@ Step dependencies are intentionally explicit:
 | 08 | Ranked output from 01 plus directional literature genes |
 | 09 | At least two all-gene contrast tables from 01 |
 | 10 | Outputs from 02-04; it also uses output from 08 when present |
+| 11 | Gene sets from 01/02, both branch-specific backgrounds, and AOPfingerprintR annotations |
+| 12 | Available outputs from 01-11 plus optional AOPGraphExplorer/AOPxGeneNet exports |
+| `fastqc` | Local FASTQ/FQ files, FastQC, and Jupyter; MultiQC is optional |
 
 The current implementation is for human bulk RNA-seq: it uses human Ensembl
 IDs, `org.Hs.eg.db`, human DoRothEA, KEGG `hsa`, Reactome `human`, and the human
@@ -178,6 +243,24 @@ to those annotation resources and organism arguments. The DESeq2 model is
 `~ condition`; studies with batches, pairing, donor effects, or interactions
 must extend the design formula in validation and differential-expression steps
 rather than treating those variables as condition labels.
+
+### Statistical families
+
+- DESeq2 Wald-test P values are BH-adjusted across tested genes separately for
+  each exposure-versus-control contrast.
+- GO, KEGG, and Reactome over-representation results are BH-adjusted within each
+  gene set and ontology/database collection. KE and AOP tests are likewise
+  treated as separate annotation families.
+- Step 11 uses one-sided hypergeometric tests, BH correction within each gene
+  set × KE/AOP family, and an empirical P value based on the number of
+  significant terms in 1,000 size-matched draws. Empirical P values are then
+  BH-adjusted across evaluated sets within the KE and AOP families.
+- WGCNA module-trait P values are nominal and exploratory. AOPxLINK
+  module-AOP P values are BH-adjusted across the archived Ta4C3 test family.
+
+Throughout the repository, `padj` denotes a BH-adjusted P value. “FDR < 0.05”
+describes the corresponding decision threshold within the explicitly stated
+test family; it is not a separate statistical test.
 
 ## Reproducibility and publication notes
 
@@ -188,6 +271,11 @@ rather than treating those variables as condition labels.
   a different dataset.
 - The included GitHub Actions workflow checks R and Python syntax without
   downloading the full scientific software stack.
+- [`CITATION.cff`](CITATION.cff), [`.zenodo.json`](.zenodo.json), and the
+  [`Supporting Information manifest`](manuscript/SUPPORTING_INFORMATION_MANIFEST.md)
+  provide release-ready citation and archive metadata. A Zenodo DOI exists only
+  after an authorized GitHub release has actually been archived; no DOI is
+  fabricated in this repository.
 
 ## License
 

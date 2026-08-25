@@ -11,6 +11,7 @@ Sys.setenv(AOP_PIPELINE_ROOT = project_root)
 args <- commandArgs(trailingOnly = TRUE)
 
 steps <- c(
+  `fastqc` = "scripts/00_fastqc_notebook.R",
   `00` = "scripts/00_data_validation.R",
   `1` = "scripts/01_deseq2_qc.R",
   `2` = "scripts/02_tf_target_expansion.R",
@@ -21,16 +22,21 @@ steps <- c(
   `7` = "scripts/07_aop_network.R",
   `8` = "scripts/08_literature_signature_projection.R",
   `9` = "scripts/09_deg_concordance.R",
-  `10` = "scripts/10_integrated_interpretation.R"
+  `10` = "scripts/10_integrated_interpretation.R",
+  `11` = "scripts/11_aop_specificity_null.R",
+  `12` = "scripts/12_publication_figures.R"
 )
 
 usage <- function() {
   cat(
     "Usage: Rscript run_pipeline.R [--steps=00,1,2,3,4,5,6] [--dry-run]\n\n",
+    "The optional 'fastqc' stage executes notebooks/Fastq_QC.ipynb before\n",
+    "count-level validation when local FASTQ files are available.\n",
     "Steps 00-6 run by default. Step 7 is optional because it requires the\n",
     "AOP-Wiki TSV exports described in data/README.md. Steps 8-10 are\n",
     "optional interpretation stages for signature projection, DEG\n",
-    "concordance, and integrated functional/AOP/TF synthesis.\n",
+    "concordance, and integrated functional/AOP/TF synthesis. Step 11 runs\n",
+    "size-matched KE/AOP null analysis; step 12 creates manuscript figures.\n",
     sep = ""
   )
 }

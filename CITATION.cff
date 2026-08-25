@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this pipeline, please cite the software release and the associated manuscript."
+title: "AOP-Guided Toxicogenomics Pipeline"
+type: software
+authors:
+  - family-names: Abdelwahab
+    given-names: Asmaa A.
+  - family-names: Serra
+    given-names: Angela
+  - family-names: Greco
+    given-names: Dario
+  - family-names: Hardy
+    given-names: Barry
+repository-code: "https://github.com/asmaa-a-abdelwahab/aop-guided-toxicogenomics"
+url: "https://github.com/asmaa-a-abdelwahab/aop-guided-toxicogenomics"
+version: 0.1.0
+date-released: 2026-08-25
+keywords:
+  - adverse outcome pathway
+  - toxicogenomics
+  - MXene
+  - transcriptomics
+  - reproducible research

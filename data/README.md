@@ -18,6 +18,15 @@ Different filenames can be supplied through `AOP_COUNTS_FILE` and
 `AOP_METADATA_FILE`; they do not need to use the defaults above. Exposed
 condition names must match the comma-separated `AOP_CHEMICALS` setting exactly.
 
+## Optional FASTQ inputs
+
+The `fastqc` stage is independent of the count-level validation step. Place
+locally available `*.fastq.gz`, `*.fq.gz`, `*.fastq`, or `*.fq` files in
+`data/fastq/`, or set `AOP_FASTQ_DIR` to another directory. The portable
+`notebooks/Fastq_QC.ipynb` notebook runs FastQC, optionally MultiQC, and writes
+its reports under `AOP_FASTQC_OUTPUT_DIR` (default `outputs/FastQC/`). Raw reads
+remain ignored by Git and must be obtained from their authorized archive.
+
 ## Required for the literature branch
 
 - `Literature_DEGs.csv` (default): comma-separated table containing `Chemical` and a gene
