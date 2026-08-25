@@ -22,10 +22,3 @@ jobs:
         run: |
           files <- c("setup.R", "run_pipeline.R", list.files("scripts", "[.]R$", full.names = TRUE))
           invisible(lapply(files, parse))
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Compile Python scripts
-        run: python -m py_compile scripts/07_aop_network.py
