@@ -310,8 +310,37 @@ if (nzchar(run_dir) && dir.exists(run_dir)) {
   trait_p_path <- file.path(run_dir, "module_trait_pvalue.csv")
   module_aop_path <- file.path(run_dir, "AOPxLink_module_AOP_enrichment.csv")
   genes_path <- file.path(run_dir, "AOPxLink_step3_selected_genes.csv")
-  required <- c(trait_path, trait_p_path, module_aop_path, genes_path)
+  step2_all_stats_path <- file.path(run_dir, "AOPxLink_step2_stats_all_contrasts.csv")
+  step3_all_summary_path <- file.path(run_dir, "AOPxLink_step3_all_contrasts_summary.csv")
+  contrast_manifest_path <- file.path(run_dir, "contrasts", "contrasts_manifest.json")
+  report_path <- file.path(run_dir, "analysis_report.json")
+  required <- c(
+    trait_path, trait_p_path, module_aop_path, genes_path,
+    step2_all_stats_path, step3_all_summary_path, contrast_manifest_path, report_path
+  )
   if (all(file.exists(required))) {
+    contrast_manifest <- jsonlite::fromJSON(contrast_manifest_path, simplifyVector = FALSE)
+    contrast_names <- vapply(contrast_manifest$contrasts, `[[`, character(1), "contrast")
+    contrast_names <- contrast_names[contrast_names %in% paste0(CHEMS, "_vs_CTRL")]
+    contrast_deg_paths <- file.path(run_dir, "deg", paste0("condition__", contrast_names), "deg_results.csv")
+    if (!all(file.exists(contrast_deg_paths))) {
+      stop("AOPxLINK contrast manifest refers to missing Step-1 DEG outputs.", call. = FALSE)
+    }
+
+    contrast_deg <- lapply(seq_along(contrast_names), function(i) {
+      contrast_name <- contrast_names[[i]]
+      must_read_csv(contrast_deg_paths[[i]]) |>
+        transmute(
+          Contrast = contrast_name,
+          Condition = sub("_vs_CTRL$", "", contrast_name),
+          gene_symbol = as.character(gene_symbol),
+          log2FC = dplyr::coalesce(as.numeric(log2FoldChange), as.numeric(logFC)),
+          padj = as.numeric(padj)
+        )
+    })
+    contrast_deg <- bind_rows(contrast_deg) |>
+      mutate(Condition = factor(Condition, levels = intersect(CHEMS, unique(Condition))))
+
     trait <- read.csv(trait_path, check.names = FALSE, row.names = 1)
     trait_p <- read.csv(trait_p_path, check.names = FALSE, row.names = 1)
     condition_cols <- setdiff(grep("^condition_", names(trait), value = TRUE), grep("^condition_factor_", names(trait), value = TRUE))
@@ -349,25 +378,169 @@ if (nzchar(run_dir) && dir.exists(run_dir)) {
       labs(x = "log2 enrichment ratio", y = NULL, size = "Overlap", fill = "-log10(FDR)", title = "B  FDR-significant module-AOP pairs") +
       theme_publication(9.5) + theme(panel.grid.major.y = element_blank(), legend.position = "bottom")
 
-    genes <- must_read_csv(genes_path) |>
+    priority_genes <- must_read_csv(genes_path) |>
       arrange(desc(visual_priority)) |>
-      slice_head(n = 12) |>
-      mutate(gene_symbol = factor(gene_symbol, levels = rev(gene_symbol)))
-    gene_panel <- ggplot(genes, aes(x = log2FC, y = gene_symbol, fill = module_id)) +
-      geom_vline(xintercept = 0, colour = "#8B949A", linewidth = 0.5) +
-      geom_point(aes(size = visual_priority), shape = 21, colour = "#25323A", stroke = 0.35) +
-      scale_size_continuous(range = c(3, 7)) +
-      labs(x = "Ta4C3 log2 fold change", y = NULL, fill = "Module", size = "Priority", title = "C  Prioritized genes (exploratory)") +
-      theme_publication(9.5) + theme(panel.grid.major.y = element_blank(), legend.position = "bottom")
+      distinct(gene_symbol, .keep_all = TRUE)
+    gene_effects <- contrast_deg |>
+      inner_join(
+        priority_genes |> select(gene_symbol, module_id, visual_priority, aopxlink_score_v2),
+        by = "gene_symbol"
+      ) |>
+      mutate(significant = padj < FDR_CUTOFF & abs(log2FC) >= LFC_MIN)
+    effects_path <- file.path(PUB_DIR, "Figure7_AOPxLINK_priority_gene_effects.csv")
+    readr::write_csv(gene_effects, effects_path)
+
+    step2_all_stats <- must_read_csv(step2_all_stats_path)
+    step3_all_summary <- must_read_csv(step3_all_summary_path)
+    metric_value <- function(metric_name) {
+      values <- step2_all_stats |>
+        filter(metric == metric_name) |>
+        pull(value) |>
+        as.numeric()
+      if (!length(values)) return(NA_real_)
+      values[[1]]
+    }
+    semgraph_summary_paths <- file.path(
+      run_dir, "contrasts", contrast_names, "step3", "semgraph", "semgraph_fit_summary.json"
+    )
+    semgraph_summary <- lapply(seq_along(contrast_names), function(i) {
+      sem_path <- semgraph_summary_paths[[i]]
+      if (!file.exists(sem_path)) {
+        return(data.frame(
+          Contrast = contrast_names[[i]], semgraph_fit = FALSE,
+          semgraph_samples = NA_integer_, semgraph_nodes = NA_integer_, semgraph_edges = NA_integer_
+        ))
+      }
+      sem <- jsonlite::fromJSON(sem_path)
+      data.frame(
+        Contrast = contrast_names[[i]], semgraph_fit = TRUE,
+        semgraph_samples = sem$n_input_samples,
+        semgraph_nodes = sem$n_graph_nodes,
+        semgraph_edges = sem$n_graph_edges
+      )
+    }) |>
+      bind_rows()
+    whole_run_summary <- contrast_deg |>
+      group_by(Contrast, Condition) |>
+      summarise(
+        step1_significant_genes = sum(padj < FDR_CUTOFF & abs(log2FC) >= LFC_MIN, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      left_join(
+        gene_effects |>
+          group_by(Contrast) |>
+          summarise(
+            prioritized_genes_significant = sum(significant, na.rm = TRUE),
+            .groups = "drop"
+          ),
+        by = "Contrast"
+      ) |>
+      left_join(
+        step3_all_summary |>
+          transmute(
+            Contrast = contrast,
+            selected_genes = as.integer(selected_genes),
+            selected_overlap_rows = as.integer(selected_overlap_rows),
+            integrated_graph_nodes = as.integer(graph_nodes),
+            integrated_graph_edges = as.integer(graph_edges)
+          ),
+        by = "Contrast"
+      ) |>
+      left_join(semgraph_summary, by = "Contrast") |>
+      mutate(
+        shared_wgcna_genes = as.integer(metric_value("n_gcn_nodes")),
+        shared_mapped_genes = as.integer(metric_value("n_mapped_genes")),
+        shared_key_events = as.integer(metric_value("n_kes")),
+        shared_aops = as.integer(metric_value("n_aops")),
+        shared_module_aop_pairs_tested = nrow(must_read_csv(module_aop_path)),
+        shared_module_aop_pairs_fdr_lt_0_05 = sum(
+          must_read_csv(module_aop_path)$padj < FDR_CUTOFF, na.rm = TRUE
+        )
+      )
+    whole_run_summary_path <- file.path(PUB_DIR, "AOPxLINK_whole_run_summary.csv")
+    readr::write_csv(whole_run_summary, whole_run_summary_path)
+
+    top_gene_names <- priority_genes |> slice_head(n = 12) |> pull(gene_symbol)
+    top_gene_effects <- gene_effects |>
+      filter(gene_symbol %in% top_gene_names) |>
+      mutate(gene_symbol = factor(gene_symbol, levels = rev(top_gene_names)))
+    effect_limit <- max(1, max(abs(top_gene_effects$log2FC), na.rm = TRUE))
+    gene_panel <- ggplot(top_gene_effects, aes(x = Condition, y = gene_symbol, fill = log2FC)) +
+      geom_tile(colour = "white", linewidth = 0.55) +
+      geom_point(
+        data = top_gene_effects |> filter(significant),
+        shape = 8, size = 2.2, colour = "#17232B"
+      ) +
+      scale_fill_gradient2(
+        low = "#2166AC", mid = "white", high = "#B2182B", midpoint = 0,
+        limits = c(-effect_limit, effect_limit), oob = scales::squish
+      ) +
+      labs(
+        x = NULL, y = NULL, fill = "Step-1\nlog2 FC",
+        title = "C  Run-level prioritized genes across contrasts",
+        subtitle = sprintf("Asterisk: limma FDR < %.2f and |log2 FC| >= %.1f", FDR_CUTOFF, LFC_MIN)
+      ) +
+      theme_publication(9.2) +
+      theme(
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        legend.position = "bottom"
+      )
 
     p7 <- trait_panel + aop_panel + gene_panel +
-      plot_layout(widths = c(1.25, 0.85, 0.9), guides = "collect") +
+      plot_layout(widths = c(1.15, 0.85, 1.1), guides = "keep") +
       plot_annotation(
-        title = "Exploratory AOPxGeneNet/AOPxLINK integration",
-        subtitle = "WGCNA module-trait P values are nominal; module-AOP FDR is adjusted within the archived AOPxLINK test family",
+        title = "Integrated five-contrast AOPxGeneNet/AOPxLINK analysis",
+        subtitle = "Whole-run synthesis of shared coexpression/AOP structure and contrast-specific Step-1 effects",
         theme = theme(plot.title = element_text(face = "bold", size = 15), plot.subtitle = element_text(size = 10))
       ) & theme(legend.position = "bottom")
-    save_publication_plot(p7, "Figure7_AOPxGeneNet_exploratory_readable", 13.5, 7.5, required)
+    figure7_sources <- c(required, contrast_deg_paths, semgraph_summary_paths, effects_path, whole_run_summary_path)
+    save_publication_plot(p7, "Figure7_AOPxGeneNet_exploratory_readable", 13.5, 7.5, figure7_sources)
+
+    # Supplementary figure: display the complete 31-gene run-level priority set
+    # against the condition-specific Step-1 effects for all five contrasts.
+    full_gene_order <- priority_genes$gene_symbol
+    full_gene_effects <- gene_effects |>
+      mutate(
+        gene_label = sprintf("%s (%s)", gene_symbol, module_id),
+        gene_label = factor(
+          gene_label,
+          levels = rev(sprintf(
+            "%s (%s)", full_gene_order,
+            priority_genes$module_id[match(full_gene_order, priority_genes$gene_symbol)]
+          ))
+        )
+      )
+    full_effect_limit <- max(1, max(abs(full_gene_effects$log2FC), na.rm = TRUE))
+    p_s2 <- ggplot(full_gene_effects, aes(x = Condition, y = gene_label, fill = log2FC)) +
+      geom_tile(colour = "white", linewidth = 0.5) +
+      geom_point(
+        data = full_gene_effects |> filter(significant),
+        shape = 8, size = 2.3, colour = "#17232B"
+      ) +
+      scale_fill_gradient2(
+        low = "#2166AC", mid = "white", high = "#B2182B", midpoint = 0,
+        limits = c(-full_effect_limit, full_effect_limit), oob = scales::squish
+      ) +
+      labs(
+        x = NULL, y = NULL, fill = "Step-1 log2 FC",
+        title = "All run-level AOPxLINK-prioritized genes across five contrasts",
+        subtitle = sprintf(
+          "Rows show gene (WGCNA module); asterisks mark limma FDR < %.2f and |log2 FC| >= %.1f",
+          FDR_CUTOFF, LFC_MIN
+        )
+      ) +
+      theme_publication(10) +
+      theme(
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        axis.text.y = element_text(size = 8.3),
+        legend.position = "bottom"
+      )
+    save_publication_plot(
+      p_s2, "FigureS2_AOPxLINK_prioritized_gene_effects", 8.5, 10.5,
+      c(genes_path, contrast_deg_paths, effects_path, whole_run_summary_path)
+    )
   }
 }
 

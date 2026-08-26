@@ -38,3 +38,4 @@ Thumbs.db
 *.swp
 *~
 manuscript/
+scripts/update_manuscript_aopxlink.py

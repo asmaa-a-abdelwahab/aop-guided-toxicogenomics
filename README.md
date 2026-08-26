@@ -256,7 +256,8 @@ rather than treating those variables as condition labels.
   significant terms in 1,000 size-matched draws. Empirical P values are then
   BH-adjusted across evaluated sets within the KE and AOP families.
 - WGCNA module-trait P values are nominal and exploratory. AOPxLINK
-  module-AOP P values are BH-adjusted across the archived Ta4C3 test family.
+  module-AOP P values are BH-adjusted across one shared family of 300 run-level
+  Step-2 tests.
 
 Throughout the repository, `padj` denotes a BH-adjusted P value. “FDR < 0.05”
 describes the corresponding decision threshold within the explicitly stated
@@ -269,6 +270,12 @@ test family; it is not a separate statistical test.
   checksums, preprocessing, and download instructions for every released input.
 - Review the chemical list and thresholds in `scripts/_config.R` before running
   a different dataset.
+- Step 12 treats the replacement AOPxGeneNet/AOPxLINK directory as one
+  integrated five-contrast analysis. Figure 7 combines the shared WGCNA and
+  module-AOP scaffold with contrast-specific Step-1 limma effects; Figure S2
+  extends the effect display to all 31 run-level prioritized genes. The script
+  writes `AOPxLINK_whole_run_summary.csv` to make the per-contrast and shared
+  components explicit.
 - The included GitHub Actions workflow checks R and Python syntax without
   downloading the full scientific software stack.
 - [`CITATION.cff`](CITATION.cff), [`.zenodo.json`](.zenodo.json), and the
