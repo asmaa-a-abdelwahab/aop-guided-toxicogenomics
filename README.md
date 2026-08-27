@@ -262,29 +262,3 @@ rather than treating those variables as condition labels.
 Throughout the repository, `padj` denotes a BH-adjusted P value. “FDR < 0.05”
 describes the corresponding decision threshold within the explicitly stated
 test family; it is not a separate statistical test.
-
-## Reproducibility and publication notes
-
-- The random seed and shared paths are defined in `scripts/_config.R`.
-- Raw data and generated outputs are not tracked. Document stable accessions,
-  checksums, preprocessing, and download instructions for every released input.
-- Review the chemical list and thresholds in `scripts/_config.R` before running
-  a different dataset.
-- Step 12 treats the replacement AOPxGeneNet/AOPxLINK directory as one
-  integrated five-contrast analysis. Figure 7 combines the shared WGCNA and
-  module-AOP scaffold with contrast-specific Step-1 limma effects; Figure S2
-  extends the effect display to all 31 run-level prioritized genes. The script
-  writes `AOPxLINK_whole_run_summary.csv` to make the per-contrast and shared
-  components explicit.
-- The included GitHub Actions workflow checks R and Python syntax without
-  downloading the full scientific software stack.
-- [`CITATION.cff`](CITATION.cff), [`.zenodo.json`](.zenodo.json), and the
-  [`Supporting Information manifest`](manuscript/SUPPORTING_INFORMATION_MANIFEST.md)
-  provide release-ready citation and archive metadata. A Zenodo DOI exists only
-  after an authorized GitHub release has actually been archived; no DOI is
-  fabricated in this repository.
-
-## License
-
-No software license has been selected. Add a `LICENSE` file before public release
-if you want others to be able to reuse or modify the code under stated terms.
